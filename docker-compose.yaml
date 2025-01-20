@@ -1,0 +1,45 @@
+version: "3.8"
+
+services:
+  database:
+    image: postgres:13
+    container_name: postgres-db
+    environment:
+      - POSTGRES_PASSWORD=postgres
+      - POSTGRES_DB=postgres
+      - POSTGRES_USER=postgres
+    ports:
+      - "5433:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+
+  web:
+    build: .
+    container_name: checks-fastapi
+    depends_on:
+      - db
+    volumes:
+      - .:/app
+    environment:
+      - PYTHONUNBUFFERED=1
+    env_file:
+      - src/.env
+    restart: always
+    command: |
+      /usr/bin/env sh -c "/usr/local/bin/wait-for.sh database:5432 --
+      alembic upgrade head --
+      uvicorn src.main:app --host 0.0.0.0 --port 8000"
+
+  nginx:
+    image: nginx:alpine
+    container_name: nginx
+    volumes:
+      - ./nginx/default.conf:/etc/nginx/conf.d/default.conf
+      - ./nginx/certs:/etc/nginx/certs
+    depends_on:
+      - checks-fastapi
+    ports:
+      - "443:443"
+
+volumes:
+  postgres-data:
